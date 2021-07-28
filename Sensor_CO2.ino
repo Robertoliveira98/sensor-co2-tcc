@@ -2,20 +2,26 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
+#include "MHZ19.h"
+
+//constantes medições e requisições
+const long medicaoDelay = 10000;
+const String authorizationId = "610102bde69bd84020a30f52";
+
+
 const char* ssid = "roberto";
 const char* password = "87890719";
+const int rx_pin = 13; //Serial rx pin no
+const int tx_pin = 15; //Serial tx pin no
 
-//url api
+
+//url api e ssl
 const char* serverName = "https://www.dcc.ufrrj.br/co2-api/inserir";
 const char fingerprint[] PROGMEM = "0D 54 90 90 C1 03 A8 9A 43 B0 86 41 91 82 79 4D 49 B7 77 71";
 
-// the following variables are unsigned longs because the time, measured in
-// milliseconds, will quickly become a bigger number than can be stored in an int.
-unsigned long lastTime = 0;
-// Timer set to 10 minutes (600000)
-//unsigned long timerDelay = 600000;
-// Set timer to 5 seconds (5000)
-unsigned long timerDelay = 10000;
+
+MHZ19 *mhz19_uart = new MHZ19(rx_pin,tx_pin);
+
 
 void setup() {
   Serial.begin(115200);
@@ -27,41 +33,46 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("");
-  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.print("Conectado à rede WiFi com endereço IP: ");
   Serial.println(WiFi.localIP());
  
-  Serial.println("Timer set to 5 seconds (timerDelay variable), it will take 5 seconds before publishing the first reading.");
+  Serial.println("Intervalo de medições em ms:");
+  Serial.println(medicaoDelay);
+
+  mhz19_uart->begin(rx_pin, tx_pin);
+  mhz19_uart->setAutoCalibration(false);
+  delay(3000); // Issue #14
+  Serial.print("MH-Z19 status:");
+  Serial.println(mhz19_uart->getStatus());
+  delay(1000);
+  
 }
 
 void loop() {
-  //Send an HTTP POST request every 10 minutes
-  if ((millis() - lastTime) > timerDelay) {
-    //Check WiFi connection status
-    if(WiFi.status()== WL_CONNECTED){
-      WiFiClientSecure client;
-      HTTPClient http;
+  //Check WiFi connection status
+  if(WiFi.status()== WL_CONNECTED){
+    WiFiClientSecure client;
+    HTTPClient http;
 
-      client.setFingerprint(fingerprint);
-      // Your Domain name with URL path or IP address with path
-      http.begin(client, serverName);
+    client.setFingerprint(fingerprint);
+    // Your Domain name with URL path or IP address with path
+    http.begin(client, serverName);
 
-      http.addHeader("Content-Type", "application/json");
-      http.addHeader("Authorization", "60e142711eaf3f50dca37bad");      
-      int httpResponseCode = http.POST("{\"medicao\":\"950\",\"idSensor\":\"teste\",\"ambiente\":{\"nome\":\"teste 1\",\"id\":\"esp8266\"}}");
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Authorization", authorizationId); 
 
-      // If you need an HTTP request with a content type: text/plain
-      //http.addHeader("Content-Type", "text/plain");
-      //int httpResponseCode = http.POST("Hello, World!");
-     
-      Serial.print("HTTP Response code: ");
-      Serial.println(httpResponseCode);
-        
-      // Free resources
-      http.end();
-    }
-    else {
-      Serial.println("WiFi Disconnected");
-    }
-    lastTime = millis();
+    //medidor
+    measurement_t m = mhz19_uart->getMeasurement();
+         
+    int httpResponseCode = http.POST("{\"medicao\":\""+(String)m.co2_ppm+"\",\"idSensor\":\""+authorizationId+"\",\"ambiente\":{\"nome\":\"teste-roberto\",\"id\":\"teste1\"}}");
+
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+      
+    http.end();
   }
+  else {
+    Serial.println("WiFi Disconnected");
+  }
+  delay(medicaoDelay);
 }
