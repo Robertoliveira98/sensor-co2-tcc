@@ -9,8 +9,8 @@ const long medicaoDelay = 10000;
 const String authorizationId = "610102bde69bd84020a30f52";
 
 
-const char* ssid = "roberto";
-const char* password = "87890719";
+const char* ssid = "nomdeRede";
+const char* password = "senhaRede";
 const int rx_pin = 13; //Serial rx pin no
 const int tx_pin = 15; //Serial tx pin no
 
